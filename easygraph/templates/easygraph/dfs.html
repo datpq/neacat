@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>DFS Algorithm Simulation</title>
+  <style type="text/css">
+    html, body {
+      font: 11pt Arial;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    .left-column {
+      flex: 1;
+      padding: 20px;
+      background-color: #f5f5f5;
+      overflow-y: auto;
+    }
+
+    .right-column {
+      flex: 2;
+      padding: 20px;
+    }
+
+    #mygraph {
+      width: 100%;
+      height: 100%;
+      border: 1px solid lightgray;
+    }
+
+    .controls {
+      margin-bottom: 20px;
+    }
+
+    .header-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-line h2 {
+      margin: 0;
+    }
+
+    .dropdowns {
+      margin: 10px 0;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    select {
+      padding: 5px;
+      font-size: 14px;
+    }
+
+    input[type="number"] {
+      padding: 5px;
+      font-size: 14px;
+      width: 80px;  /* Adjust the width as needed */
+      box-sizing: border-box; /* Ensures padding is included in the width */
+    }
+
+    .button-line {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      padding: 10px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .result {
+      margin-top: 20px;
+      font-size: 16px;
+      color: black;
+      font-weight: bold;
+    }
+
+    .visited-node {
+      color: red;
+    }
+
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+
+    .pseudo-code {
+      margin: 10px 0;
+      font-size: 14px;
+    }
+
+    pre {
+      background-color: #e5e5e5;
+      padding: 10px;
+      font-size: 14px;
+      border-radius: 5px;
+      white-space: pre-wrap;
+    }
+
+    .highlight {
+      background-color: yellow;
+    }
+
+    .visited {
+      background-color: red !important;
+      color: white;
+    }
+  </style>
+
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+  <script type="text/javascript">
+document.addEventListener('DOMContentLoaded', function() {
+    // Ensure the data is correctly interpreted as JSON
+    var graphs = JSON.parse(document.getElementById('graphs-data').textContent);
+
+    console.log(graphs);  // Debugging output to verify JSON data
+
+    var graph, nodes, edges, network;
+    var options = {
+        nodes: {
+            shape: 'circle',
+            font: {
+                size: 16,
+                align: 'center',
+            },
+        },
+        edges: {
+            length: 100,
+            color: 'gray',
+            dashes: true,
+        },
+        physics: {
+            stabilization: false,
+            barnesHut: {
+                springLength: 200,
+            },
+        },
+    };
+
+    var dfsSteps = [];
+    var currentStepIndex = -1;
+    var isPaused = true;
+    var runInterval;
+    var clearIntervalFlag = false;
+    var intervalTime = 300; // Default interval time
+
+    function draw() {
+        nodes = new vis.DataSet();
+        edges = new vis.DataSet();
+
+        var container = document.getElementById("mygraph");
+        var data = {
+            nodes: nodes,
+            edges: edges,
+        };
+        network = new vis.Network(container, data, options);
+    }
+
+    function loadGraphData(graphId) {
+        if (graphId) {
+            // Get the selected graph object using the graphId
+            graph = graphs.find(graph => graph.id == graphId);
+
+            var urlVertices = "{% url 'get_vertices' 0 %}".replace('0', graphId);
+            $.ajax({
+                url: urlVertices,
+                type: 'GET',
+                success: function(data) {
+                    nodes.clear();
+                    $('#nodeSelect').empty(); 
+                    $.each(data, function(index, vertex) {
+                        nodes.add({
+                            id: vertex.id,
+                            label: vertex.label,
+                        });
+                        $('#nodeSelect').append(
+                            $('<option>', { value: vertex.id, text: vertex.label })
+                        );
+                    });
+                },
+                error: function(xhr, status, error) {
+                    console.error("AJAX Error:", status, error);
+                }
+            });
+
+            var urlEdges = "{% url 'get_edges' 0 %}".replace('0', graphId);
+            $.ajax({
+                url: urlEdges,
+                type: 'GET',
+                success: function(data) {
+                    edges.clear();
+                    $.each(data, function(index, edge) {
+                        // Check if the graph is directed or undirected
+                        var arrows = graph.undirected ? "" : "to"; // Directed graph if undirected is false
+
+                        edges.add({
+                            id: edge.id,
+                            from: edge.vertex_from,
+                            to: edge.vertex_to,
+                            arrows: arrows // Set the arrow option
+                        });
+                    });
+
+                    network.setData({ nodes: nodes, edges: edges });
+                    network.stabilize();
+                },
+                error: function(xhr, status, error) {
+                    console.error("AJAX Error:", status, error);
+                }
+            });
+        }
+    }
+
+    function dfs(startNodeId) {
+        intervalTime = parseInt($('#intervalInput').val()) || 300;
+        dfsSteps = [];
+        currentStepIndex = 0;
+        var visited = {};
+        dfsVisit(startNodeId, visited);
+    }
+
+    function dfsVisit(nodeId, visited) {
+        if (!visited[nodeId]) {
+            dfsSteps.push({ action: 'visit', nodeId: nodeId });
+            visited[nodeId] = true;
+            
+            if (graph.undirected) {
+                var connectedNodes = network.getConnectedNodes(nodeId);
+                connectedNodes.forEach(function(neighbor) {
+                    if (!visited[neighbor]) {
+                        dfsSteps.push({ action: 'explore', from: nodeId, to: neighbor });
+                        dfsVisit(neighbor, visited);
+                        dfsSteps.push({ action: 'backtrack', nodeId: nodeId });
+                    }
+                });                
+            } else {
+                // Fetch all edges connected to the current node
+                var connectedEdges = network.getConnectedEdges(nodeId);
+                
+                connectedEdges.forEach(function(edgeId) {
+                    var edge = edges.get(edgeId); // Get edge details
+                    
+                    // Check if the edge is directed (edge.from === nodeId means it's an outgoing edge from nodeId)
+                    if (edge.from === nodeId) {
+                        var neighbor = edge.to; // Directed edge means we go from 'nodeId' to 'neighbor'
+                        
+                        if (!visited[neighbor]) {
+                            dfsSteps.push({ action: 'explore', from: nodeId, to: neighbor });
+                            dfsVisit(neighbor, visited);
+                            dfsSteps.push({ action: 'backtrack', nodeId: nodeId });
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    function runDfsWithInterval() {
+        runInterval = setInterval(function() {
+            if (!isPaused && currentStepIndex < dfsSteps.length) {
+                executeNextStep();
+                if (clearIntervalFlag) {
+                    clearIntervalFlag = false;
+                    clearInterval(runInterval);
+                    enableButtons();
+                }
+            } else if (currentStepIndex >= dfsSteps.length) {
+                finishDfs();
+            }
+        }, intervalTime);
+    }
+
+    function executeNextStep() {
+        var step = dfsSteps[currentStepIndex++];
+
+        $('.pseudo-code .highlight').removeClass('highlight');
+        if (step.action === 'visit') {
+            $('#pseudo-line-3').addClass('highlight');
+            nodes.update({ id: step.nodeId, color: { background: 'red' }, font: { color: 'white' } });
+            appendToResult(step.nodeId);
+        } else if (step.action === 'explore') {
+            $('#pseudo-line-4').addClass('highlight');
+            highlightEdge(step.from, step.to, 'solid', 'blue'); 
+        } else if (step.action === 'backtrack') {
+            $('#pseudo-line-5').addClass('highlight');
+            nodes.update({ id: step.nodeId, color: { background: 'orange' } });
+        }
+    }
+
+    function highlightEdge(from, to, style, color) {
+        edges.forEach(function(edge) {
+            if ((edge.from === from && edge.to === to) || (edge.from === to && edge.to === from)) {
+                edges.update({ id: edge.id, dashes: style === 'dashed', color: { color: color } });
+            }
+        });
+    }
+
+    function finishDfs() {
+        clearInterval(runInterval);
+        enableButtons();
+        $('.pseudo-code .highlight').removeClass('highlight');
+    }
+
+    function resetGraph() {
+        currentStepIndex = -1;
+        nodes.forEach(function(node) {
+            nodes.update({ id: node.id, color: { background: '#97C2FC' }, font: { color: 'black' } });
+        });
+
+        edges.forEach(function(edge) {
+            edges.update({ id: edge.id, dashes: true, color: { color: 'gray' } });
+        });
+
+        $('#dfsResult').empty(); 
+        clearInterval(runInterval);
+        enableButtons();
+    }
+
+    function appendToResult(nodeId) {
+        var node = nodes.get(nodeId);
+        $('#dfsResult').append('<span class="visited-node">' + node.label + '</span> ');
+    }
+
+    function disableButtons() {
+        $('#stepForward').prop('disabled', true);
+        $('#restart').prop('disabled', true);
+        $('#runDfs').text('Pause');
+        isPaused = false;
+    }
+
+    function enableButtons() {
+        $('#stepForward').prop('disabled', false);
+        $('#restart').prop('disabled', false);
+        $('#runDfs').text('Run');
+        isPaused = true;
+    }
+
+    $(document).ready(function() {
+        draw(); // Initialize the network
+
+        // Load the initial graph and nodes
+        var firstGraphId = $('#graphSelect option').eq(0).val(); // Skip the placeholder
+        if (firstGraphId) {
+            $('#graphSelect').val(firstGraphId).trigger('change');
+            loadGraphData(firstGraphId);
+        }
+
+        // Load graph data when graph selection changes
+        $('#graphSelect').change(function() {
+            var graphId = $(this).val();
+            if (graphId) {
+                loadGraphData(graphId);
+                resetGraph();
+            }
+        });
+
+        $('#nodeSelect').change(function() {
+            var nodeId = $(this).val();
+            if (nodeId) {
+                resetGraph();
+            }
+        });
+
+        // Update node selection dropdown when graph data is loaded
+        function updateNodeSelectOptions() {
+            var selectedGraphId = $('#graphSelect').val();
+            if (selectedGraphId) {
+                var urlVertices = "{% url 'get_vertices' 0 %}".replace('0', selectedGraphId);
+                $.ajax({
+                    url: urlVertices,
+                    type: 'GET',
+                    success: function(data) {
+                        $('#nodeSelect').empty(); // Clear previous nodes
+                        $.each(data, function(index, vertex) {
+                            $('#nodeSelect').append(
+                                $('<option>', { value: vertex.id, text: vertex.label })
+                            );
+                        });
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("AJAX Error:", status, error);
+                    }
+                });
+            }
+        }
+
+        // Handle the "Run" button click
+        $('#runDfs').click(function() {
+            if (isPaused) {
+                if (currentStepIndex < 0) {
+                    var startNodeId = parseInt($('#nodeSelect').val()); // Get selected node
+                    if (startNodeId) {
+                        dfs(startNodeId); // Start DFS
+                    }
+                }
+                disableButtons();
+                runDfsWithInterval();
+            } else {
+                clearIntervalFlag = true;
+            }
+        });
+
+        // Handle the "Step Forward" button click
+        $('#stepForward').click(function() {
+            if (currentStepIndex < 0) {
+                var startNodeId = parseInt($('#nodeSelect').val()); // Get selected node
+                if (startNodeId) {
+                    dfs(startNodeId); // Start DFS
+                }
+            }
+            executeNextStep();
+        });
+
+        // Handle the "Restart" button click
+        $('#restart').click(function() {
+            resetGraph();
+        });
+    });
+});
+</script>
+</head>
+<body>
+  <div class="container">
+    <div class="left-column">
+      <h1>DFS Algorithm</h1>
+      <h2>Pseudocode:</h2>
+      <pre class="pseudo-code">
+        <span id="pseudo-line-1">DFS(node):</span>
+        <span id="pseudo-line-2">  if node is not visited:</span>
+        <span id="pseudo-line-3">    mark node as visited</span>
+        <span id="pseudo-line-4">    for each neighbor in adjacency list of node:</span>
+        <span id="pseudo-line-5">      DFS(neighbor)</span>
+      </pre>
+
+      <div class="controls">
+        <div class="header-line">
+          <h2>Graph selection:</h2>
+        </div>
+
+        <div class="dropdowns">
+          <label for="graphSelect">Graph:</label>
+          <select id="graphSelect">
+            {% for graph in graphs %}
+              <option value="{{ graph.id }}">{{ graph.name }}</option>
+            {% endfor %}
+          </select>
+          <label for="nodeSelect">Starting vertex:</label>
+          <select id="nodeSelect">
+            <!-- Node options will be populated here -->
+          </select>
+          <label for="intervalInput">Delay (ms):</label>
+          <input type="number" id="intervalInput" value="300" min="0" step="100">
+        </div>
+
+        <div class="button-line">
+          <button id="restart">Restart</button>
+          <button id="runDfs">Run</button>
+          <button id="stepForward">Step Forward</button>
+        </div>
+      </div>
+
+      <div id="dfsResult" class="result"></div>
+    </div>
+    
+    <div class="right-column">
+      <div id="mygraph"></div>
+    </div>
+  </div>
+  <!-- Embedding JSON data safely -->
+  {{ graphs|json_script:"graphs-data" }}
+</body>
+</html>

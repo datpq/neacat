@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Algorithm Visualization</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f5f5f5;
+    }
+
+    .algorithm-card {
+      width: 400px; /* Larger width */
+      height: 400px; /* Larger height */
+      margin: 20px;
+      display: flex;
+      flex-direction: column; /* Stack title and image vertically */
+      justify-content: center;
+      align-items: center;
+      background-color: #ffffff;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      overflow: hidden; /* Hide overflow */
+    }
+
+    .algorithm-card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .algorithm-title {
+      font-size: 1.6em; /* Larger title font size */
+      margin-bottom: 10px;
+      color: #333;
+    }
+
+    .algorithm-image {
+      width: 100%;
+      height: auto;
+      object-fit: cover; /* Ensures the image covers the box */
+      border-top: 1px solid #ddd; /* Light border for separation */
+    }
+    
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+  </style>
+  {% load static %}
+</head>
+<body>
+  <!-- DFS Card -->
+  <a href="dfs" class="algorithm-card">
+    <div>
+      <div class="algorithm-title">DFS Algorithm</div>
+      <img src="{% static 'images/dfs.jpg' %}" alt="DFS Algorithm" class="algorithm-image">
+    </div>
+  </a>
+
+  <!-- BFS Card -->
+  <a href="bfs" class="algorithm-card">
+    <div>
+      <div class="algorithm-title">BFS Algorithm</div>
+      <img src="{% static 'images/bfs.jpg' %}" alt="BFS Algorithm" class="algorithm-image">
+    </div>
+  </a>
+
+  <!-- Dijkstra Card -->
+  <a href="dijkstra" class="algorithm-card">
+    <div>
+      <div class="algorithm-title">Dijkstra's Algorithm</div>
+      <img src="{% static 'images/dijkstra.jpg' %}" alt="Dijkstra's Algorithm" class="algorithm-image">
+    </div>
+  </a>
+</body>
+</html>
