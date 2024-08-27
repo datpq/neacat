@@ -1,8 +1,9 @@
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 
 class Graph(models.Model):
-    category = models.CharField(max_length=30)
+    category = models.CharField(max_length=100)
     name = models.CharField(max_length=30)
     desc = models.CharField(max_length=200)
     undirected = models.BooleanField(default=True)
@@ -20,7 +21,7 @@ class Vertex(models.Model):
 class Edge(models.Model):
     vertex_from = models.ForeignKey(Vertex, on_delete=models.CASCADE, related_name='edges_from')
     vertex_to = models.ForeignKey(Vertex, on_delete=models.CASCADE, related_name='edges_to')
-    weight = models.IntegerField(default=0)
+    weight = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     class Meta:
         unique_together = ('vertex_from', 'vertex_to')
     def clean(self):

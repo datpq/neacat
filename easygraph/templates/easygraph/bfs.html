@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>DFS Algorithm Simulation</title>
+  <title>BFS Algorithm Simulation</title>
   <style type="text/css">
     html, body {
       font: 11pt Arial;
@@ -216,18 +216,18 @@ document.addEventListener('DOMContentLoaded', function() {
 	                    // Build the adjacency list
                         var node_from = nodes.get(edge.vertex_from).label;
                         var node_to = nodes.get(edge.vertex_to).label;
-	                    if (!adjacencyList[node_from]) {
-	                        adjacencyList[node_from] = [];
-	                    }
-	                    adjacencyList[node_from].push(node_to);
-	
-	                    if (graph.undirected) {
+                        if (!adjacencyList[node_from]) {
+                            adjacencyList[node_from] = [];
+                        }
+                        adjacencyList[node_from].push(node_to);
+
+                        if (graph.undirected) {
 	                        // For undirected graphs, add the reverse edge
-	                        if (!adjacencyList[node_to]) {
-	                            adjacencyList[node_to] = [];
-	                        }
-	                        adjacencyList[node_to].push(node_from);
-	                    }
+                            if (!adjacencyList[node_to]) {
+                                adjacencyList[node_to] = [];
+                            }
+                            adjacencyList[node_to].push(node_from);
+                        }
                     });
 
                     displayAdjacencyList(adjacencyList);  // Call function to display the adjacency list
@@ -242,46 +242,43 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function dfs(startNodeId) {
+    function bfs(startNodeId) {
         intervalTime = parseInt($('#intervalInput').val()) || 300;
         steps = [];
         currentStepIndex = 0;
         var visited = {};
-        dfsVisit(startNodeId, visited);
-    }
+        var queue = [startNodeId];
 
-    function dfsVisit(nodeId, visited) {
-        if (!visited[nodeId]) {
-            steps.push({ action: 'visit', nodeId: nodeId });
-            visited[nodeId] = true;
-            
-            if (graph.undirected) {
-                var connectedNodes = network.getConnectedNodes(nodeId);
-                connectedNodes.forEach(function(neighbor) {
-                    if (!visited[neighbor]) {
-                        steps.push({ action: 'explore', from: nodeId, to: neighbor });
-                        dfsVisit(neighbor, visited);
-                        steps.push({ action: 'backtrack', nodeId: nodeId });
-                    }
-                });                
-            } else {
-                // Fetch all edges connected to the current node
-                var connectedEdges = network.getConnectedEdges(nodeId);
-                
-                connectedEdges.forEach(function(edgeId) {
-                    var edge = edges.get(edgeId); // Get edge details
-                    
-                    // Check if the edge is directed (edge.from === nodeId means it's an outgoing edge from nodeId)
-                    if (edge.from === nodeId) {
-                        var neighbor = edge.to; // Directed edge means we go from 'nodeId' to 'neighbor'
-                        
+        while (queue.length > 0) {
+            var nodeId = queue.shift();
+            if (!visited[nodeId]) {
+                steps.push({ action: 'visit', nodeId: nodeId });
+                visited[nodeId] = true;
+
+                if (graph.undirected) {
+                    var connectedNodes = network.getConnectedNodes(nodeId);
+                    connectedNodes.forEach(function(neighbor) {
                         if (!visited[neighbor]) {
                             steps.push({ action: 'explore', from: nodeId, to: neighbor });
-                            dfsVisit(neighbor, visited);
-                            steps.push({ action: 'backtrack', nodeId: nodeId });
+                            queue.push(neighbor);
                         }
-                    }
-                });
+                    });
+                } else {
+                    var connectedEdges = network.getConnectedEdges(nodeId);
+
+                    connectedEdges.forEach(function(edgeId) {
+                        var edge = edges.get(edgeId);
+
+                        if (edge.from === nodeId) {
+                            var neighbor = edge.to;
+
+                            if (!visited[neighbor]) {
+                                steps.push({ action: 'explore', from: nodeId, to: neighbor });
+                                queue.push(neighbor);
+                            }
+                        }
+                    });
+                }
             }
         }
     }
@@ -306,15 +303,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         $('.pseudo-code .highlight').removeClass('highlight');
         if (step.action === 'visit') {
-            $('#pseudo-line-3').addClass('highlight');
+            $('#pseudo-line-4').addClass('highlight');
             nodes.update({ id: step.nodeId, color: { background: 'red' }, font: { color: 'white' } });
             appendToResult(step.nodeId);
         } else if (step.action === 'explore') {
-            $('#pseudo-line-4').addClass('highlight');
-            highlightEdge(step.from, step.to, 'solid', 'blue'); 
-        } else if (step.action === 'backtrack') {
             $('#pseudo-line-5').addClass('highlight');
-            nodes.update({ id: step.nodeId, color: { background: 'orange' } });
+            nodes.update({ id: step.to, color: { background: 'orange' }, font: { color: 'white' } });
+            highlightEdge(step.from, step.to, 'solid', 'blue'); 
         }
     }
 
@@ -342,7 +337,7 @@ document.addEventListener('DOMContentLoaded', function() {
             edges.update({ id: edge.id, dashes: true, color: { color: 'gray' } });
         });
 
-        $('#Result').empty(); 
+        $('#Result').empty();
         clearInterval(runInterval);
         enableButtons();
     }
@@ -433,7 +428,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (currentStepIndex < 0) {
                     var startNodeId = parseInt($('#nodeSelect').val()); // Get selected node
                     if (startNodeId) {
-                        dfs(startNodeId); // Start DFS
+                        bfs(startNodeId); // Start BFS
                     }
                 }
                 disableButtons();
@@ -448,7 +443,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (currentStepIndex < 0) {
                 var startNodeId = parseInt($('#nodeSelect').val()); // Get selected node
                 if (startNodeId) {
-                    dfs(startNodeId); // Start DFS
+                    bfs(startNodeId); // Start BFS
                 }
             }
             executeNextStep();
@@ -460,19 +455,19 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
-</script>
+  </script>
 </head>
 <body>
   <div class="container">
     <div class="left-column">
-      <h1>DFS Algorithm</h1>
+      <h1>BFS Algorithm</h1>
       <h2>Pseudocode:</h2>
       <pre class="pseudo-code">
-        <span id="pseudo-line-1">DFS(node):</span>
-        <span id="pseudo-line-2">  if node is not visited:</span>
-        <span id="pseudo-line-3">    mark node as visited</span>
-        <span id="pseudo-line-4">    for each neighbor in adjacency list of node:</span>
-        <span id="pseudo-line-5">      DFS(neighbor)</span>
+        <span id="pseudo-line-1">BFS(G, s):</span>
+        <span id="pseudo-line-2">  Initialize all nodes as unvisited</span>
+        <span id="pseudo-line-3">  While the queue is not empty:</span>
+        <span id="pseudo-line-4">    Dequeue a node and visit it</span>
+        <span id="pseudo-line-5">    Enqueue all adjacent unvisited nodes</span>
       </pre>
 
       <div class="controls">
@@ -507,15 +502,15 @@ document.addEventListener('DOMContentLoaded', function() {
         <ul id="adjacencyList"></ul> <!-- This is where the adjacency list will be displayed -->
       </div>
 
-      <div class="header-line">
-        <h2>Result:</h2>
-      </div>
-      <div id="Result" class="result"></div>
+	  <div class="header-line">
+	    <h2>Result:</h2>
+	  </div>
+	  <div id="Result" class="result"></div>
     </div>
-    
-    <div class="right-column">
-      <div id="mygraph"></div>
-    </div>
+	
+	<div class="right-column">
+	  <div id="mygraph"></div>
+	</div>
   </div>
   <!-- Embedding JSON data safely -->
   {{ graphs|json_script:"graphs-data" }}
