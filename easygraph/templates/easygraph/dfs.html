@@ -37,6 +37,19 @@
       margin-bottom: 20px;
     }
 
+    .back-link {
+        display: block; /* Makes the link a block element */
+        margin-bottom: 15px; /* Adds space below the link */
+        font-size: 14px; /* Adjusts the font size */
+        text-decoration: none; /* Removes the underline */
+        color: #007bff; /* Default link color */
+    }
+
+    .back-link:hover {
+        text-decoration: underline; /* Underlines link on hover */
+        color: #0056b3; /* Darker color on hover */
+    }
+    
     .header-line {
       display: flex;
       align-items: center;
@@ -509,6 +522,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       <div class="header-line">
         <h2>Result:</h2>
+        <a href="./" class="back-link">← Go Back</a>
       </div>
       <div id="Result" class="result"></div>
     </div>

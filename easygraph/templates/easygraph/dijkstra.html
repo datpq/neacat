@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Dijkstra's Algorithm Simulation</title>
+    <style type="text/css">
+    html, body {
+      font: 11pt Arial;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    .left-column {
+      flex: 1;
+      padding: 20px;
+      background-color: #f5f5f5;
+      overflow-y: auto;
+    }
+
+    .right-column {
+      flex: 2;
+      padding: 20px;
+        }
+
+        #mygraph {
+	      	width: 100%;
+	      	height: 100%;
+			border: 1px solid lightgray;
+        }
+
+    .controls {
+      margin-bottom: 20px;
+    }
+
+    .back-link {
+        display: block; /* Makes the link a block element */
+        margin-bottom: 15px; /* Adds space below the link */
+        font-size: 14px; /* Adjusts the font size */
+        text-decoration: none; /* Removes the underline */
+        color: #007bff; /* Default link color */
+    }
+
+    .back-link:hover {
+        text-decoration: underline; /* Underlines link on hover */
+        color: #0056b3; /* Darker color on hover */
+    }
+
+    .header-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-line h2 {
+      margin: 0;
+    }
+
+    .dropdowns {
+      margin: 10px 0;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    select {
+      padding: 5px;
+      font-size: 14px;
+    }
+
+    input[type="number"] {
+      padding: 5px;
+      font-size: 14px;
+      width: 80px;  /* Adjust the width as needed */
+      box-sizing: border-box; /* Ensures padding is included in the width */
+    }
+
+    .button-line {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      padding: 10px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .result {
+      margin-top: 20px;
+      font-size: 16px;
+      color: black;
+      font-weight: bold;
+    }
+
+    .visited-node {
+        background-color: green;
+        color: white;
+        padding: 2px 4px;
+        margin: 2px;
+        display: inline-block;
+    }
+
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+
+    .pseudo-code {
+      margin: 10px 0;
+      font-size: 14px;
+    }
+
+    pre {
+      background-color: #e5e5e5;
+      padding: 10px;
+      font-size: 14px;
+      border-radius: 5px;
+      white-space: pre-wrap;
+        }
+
+        .highlight {
+            background-color: yellow;
+        }
+    </style>
+
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <script type="text/javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+		    // Ensure the data is correctly interpreted as JSON
+		    var graphs = JSON.parse(document.getElementById('graphs-data').textContent);
+		
+		    console.log(graphs);  // Debugging output to verify JSON data
+
+            var vertices, distances;
+            var graph, nodes, edges, network;
+            var options = {
+                nodes: {
+                    shape: 'circle',
+                    font: {
+                        size: 16,
+                        align: 'center',
+                        multi: true, // Allows multi-line labels
+                    },
+                    margin: 10,
+                },
+                edges: {
+                    length: 100,
+                    color: 'gray',
+                    font: { align: 'top' },  // To display weights
+                },
+                physics: {
+                    stabilization: false,
+                    barnesHut: {
+                        springLength: 200,
+                    },
+                },
+            };
+
+            var steps = [];
+            var currentStepIndex = -1;
+            var isPaused = true;
+            var runInterval;
+            var clearIntervalFlag = false;
+            var intervalTime = 300; // Default interval time
+
+            function draw() {
+                nodes = new vis.DataSet();
+                edges = new vis.DataSet();
+
+                var container = document.getElementById("mygraph");
+                var data = {
+                    nodes: nodes,
+                    edges: edges,
+                };
+                network = new vis.Network(container, data, options);
+            }
+
+            function FormatLabel(label, weight) {
+                return '<b>' + label + '</b>(' + (weight == Infinity ? '∞' : weight) + ')';
+            }
+
+            function loadGraphData(graphId) {
+                if (!graphId) return; // Exit if no graphId is provided
+
+                graph = graphs.find(graph => graph.id == graphId);
+                if (!graph) return; // Exit if graph not found
+
+                var urlVertices = "{% url 'get_vertices' 0 %}".replace('0', graphId);
+                $.ajax({
+                    url: urlVertices,
+                    type: 'GET',
+                    success: function(data) {
+                        vertices = data;
+                        nodes.clear();
+                        $('#nodeSelect').empty();
+                        $.each(data, function(index, vertex) {
+                            nodes.add({
+                                id: vertex.id,
+                                label: FormatLabel(vertex.label, Infinity),
+                            });
+                            $('#nodeSelect').append(
+                                $('<option>', { value: vertex.id, text: vertex.label })
+                            );
+                        });
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("AJAX Error:", status, error);
+                    }
+                });
+
+                var urlEdges = "{% url 'get_edges' 0 %}".replace('0', graphId);
+                $.ajax({
+                    url: urlEdges,
+                    type: 'GET',
+                    success: function(data) {
+                        edges.clear();
+                    	var adjacencyList = {};  // Create an object to store the adjacency list
+
+                        $.each(data, function(index, edge) {
+	                        // Check if the graph is directed or undirected
+	                        var arrows = graph.undirected ? "" : "to"; // Directed graph if undirected is false
+
+	                        edges.add({
+	                            id: edge.id,
+	                            from: edge.vertex_from,
+	                            to: edge.vertex_to,
+	                            label: edge.weight.toString(),
+	                            arrows: arrows // Set the arrow option
+	                        });
+	                    	// Build the adjacency list
+                            var node_from = vertices.find(ver => ver.id == edge.vertex_from).label;
+                            var node_to = vertices.find(ver => ver.id == edge.vertex_to).label;
+                            if (!adjacencyList[node_from]) {
+                                adjacencyList[node_from] = [];
+                            }
+                            adjacencyList[node_from].push({ to: node_to, weight: edge.weight });
+
+                            if (graph.undirected) {
+                                if (!adjacencyList[node_to]) {
+                                    adjacencyList[node_to] = [];
+                                }
+                                adjacencyList[node_to].push({ to: node_from, weight: edge.weight });
+                            }
+                        });
+
+                    	displayAdjacencyList(adjacencyList);  // Call function to display the adjacency list
+
+                        network.setData({ nodes: nodes, edges: edges });
+                        network.stabilize();
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("AJAX Error:", status, error);
+                    }
+                });
+            }
+
+            function dijkstra(startNodeId) {
+                intervalTime = parseInt($('#intervalInput').val()) || 300;
+                steps = [];
+                currentStepIndex = 0;
+                distances = {};
+                var visited = {};
+                var pq = new MinPriorityQueue();
+
+                nodes.forEach(function(node) {
+                    distances[node.id] = Infinity;
+                    visited[node.id] = false;
+                });
+
+                distances[startNodeId] = 0;
+                pq.enqueue(startNodeId, 0);
+                steps.push({ action: 'start', nodeId: startNodeId });
+                steps.push({ action: 'start_queue', nodeId: startNodeId });
+
+                while (!pq.isEmpty()) {
+                    var minNode = pq.dequeue().element;
+                    if (visited[minNode]) continue;
+
+                    visited[minNode] = true;
+                    steps.push({ action: 'visit', nodeId: minNode });
+
+                    var connectedEdges = network.getConnectedEdges(minNode);
+                    connectedEdges.forEach(function(edgeId) {
+                        var edge = edges.get(edgeId);
+                        var neighbor = edge.from === minNode ? edge.to : edge.from;
+                        var newDist = distances[minNode] + parseFloat(edge.label);
+
+                        if (newDist < distances[neighbor]) {
+                            distances[neighbor] = newDist;
+                            pq.enqueue(neighbor, newDist);
+                            steps.push({ action: 'update', from: minNode, to: neighbor, newDist: newDist });
+                        }
+                    });
+                }
+            }
+
+            function runWithInterval() {
+                runInterval = setInterval(function() {
+                    if (!isPaused && currentStepIndex < steps.length) {
+                        executeNextStep();
+                        if (clearIntervalFlag) {
+                            clearIntervalFlag = false;
+                            clearInterval(runInterval);
+                            enableButtons();
+                        }
+                    } else if (currentStepIndex >= steps.length) {
+                        finishRun();
+                    }
+                }, intervalTime);
+            }
+
+            function executeNextStep() {
+                var step = steps[currentStepIndex++];
+
+                $('.pseudo-code .highlight').removeClass('highlight');
+                if (step.action === 'start') {
+                    $('#pseudo-line-1').addClass('highlight');
+                    nodes.update({ id: step.nodeId, color: { background: 'orange' }, font: { color: 'white' } });
+                    var vertex = vertices.find(ver => ver.id == step.nodeId);
+                    nodes.update({ id: step.nodeId, label: FormatLabel(vertex.label, 0)});
+                } else if (step.action === 'start_queue') {
+                    $('#pseudo-line-2').addClass('highlight');
+                } else if (step.action === 'visit') {
+                    $('#pseudo-line-4').addClass('highlight');
+                    nodes.update({ id: step.nodeId, color: { background: 'red' }, font: { color: 'white' } });
+                    appendToResult(step.nodeId);
+                } else if (step.action === 'update') {
+                    $('#pseudo-line-6').addClass('highlight');
+                    highlightEdge(step.from, step.to, 'solid', 'blue');
+                    nodes.update({ id: step.to, color: { background: 'orange' }, font: { color: 'white' } });
+                    var vertex = vertices.find(ver => ver.id == step.to);
+                    nodes.update({ id: step.to, label: FormatLabel(vertex.label, step.newDist)});
+                }
+            }
+
+            function highlightEdge(from, to, style, color) {
+                edges.forEach(function(edge) {
+                    if ((edge.from === from && edge.to === to) || (edge.from === to && edge.to === from)) {
+                        edges.update({ id: edge.id, dashes: style === 'dashed', color: { color: color } });
+                    }
+                });
+            }
+
+            function finishRun() {
+                clearInterval(runInterval);
+                enableButtons();
+                $('.pseudo-code .highlight').removeClass('highlight');
+            }
+
+            function resetGraph() {
+                currentStepIndex = -1;
+                nodes.forEach(function(node) {
+                    var vertex = vertices.find(ver => ver.id == node.id);
+                    nodes.update({ id: node.id, label: FormatLabel(vertex.label, Infinity), color: { background: '#97C2FC' }, font: { color: 'black' } });
+                });
+
+                edges.forEach(function(edge) {
+                    edges.update({ id: edge.id, color: { color: 'gray' } });
+                });
+
+                $('#Result').empty();
+                clearInterval(runInterval);
+                enableButtons();
+            }
+
+            // Function to display the adjacency list
+            function displayAdjacencyList(adjacencyList) {
+                var listContainer = $('#adjacencyList');
+                listContainer.empty();  // Clear the existing list
+
+                for (var nodeId in adjacencyList) {
+                    var neighbors = adjacencyList[nodeId].map(neighbor => neighbor.to + ' (' + neighbor.weight + ')');
+                    var listItem = $('<li>').text('Node ' + nodeId + ': ' + neighbors.join(', '));
+                    listContainer.append(listItem);
+                }
+            }
+
+            function appendToResult(nodeId) {
+                //var node = nodes.get(nodeId);
+                var vertex = vertices.find(ver => ver.id == nodeId);
+                $('#Result').append('<span class="visited-node">' + FormatLabel(vertex.label, distances[nodeId]).replace('<b>', '').replace('</b>', '') + '</span> ');
+            }
+
+            function disableButtons() {
+                $('#stepForward').prop('disabled', true);
+                $('#restart').prop('disabled', true);
+                $('#run').text('Pause');
+                isPaused = false;
+            }
+
+            function enableButtons() {
+                $('#stepForward').prop('disabled', false);
+                $('#restart').prop('disabled', false);
+                $('#run').text('Run');
+                isPaused = true;
+            }
+
+            $(document).ready(function() {
+                draw();
+
+		        // Load the initial graph and nodes
+		        var firstGraphId = $('#graphSelect option').eq(0).val(); // Skip the placeholder
+		        if (firstGraphId) {
+		            $('#graphSelect').val(firstGraphId).trigger('change');
+		            loadGraphData(firstGraphId);
+                }
+
+		        // Load graph data when graph selection changes
+		        $('#graphSelect').change(function() {
+		            var graphId = $(this).val();
+		            if (graphId) {
+		                loadGraphData(graphId);
+		                resetGraph();
+		            }
+		        });
+		
+		        $('#nodeSelect').change(function() {
+		            var nodeId = $(this).val();
+		            if (nodeId) {
+		                resetGraph();
+		            }
+		        });
+        
+		        // Update node selection dropdown when graph data is loaded
+		        function updateNodeSelectOptions() {
+		            var selectedGraphId = $('#graphSelect').val();
+		            if (selectedGraphId) {
+		                var urlVertices = "{% url 'get_vertices' 0 %}".replace('0', selectedGraphId);
+		                $.ajax({
+		                    url: urlVertices,
+		                    type: 'GET',
+		                    success: function(data) {
+		                        $('#nodeSelect').empty(); // Clear previous nodes
+		                        $.each(data, function(index, vertex) {
+		                            $('#nodeSelect').append(
+		                                $('<option>', { value: vertex.id, text: vertex.label })
+		                            );
+		                        });
+		                    },
+		                    error: function(xhr, status, error) {
+		                        console.error("AJAX Error:", status, error);
+		                    }
+		                });
+		            }
+		        }
+
+		        // Handle the "Run" button click
+		        $('#run').click(function() {
+		            if (isPaused) {
+		                if (currentStepIndex < 0) {
+		                    var startNodeId = parseInt($('#nodeSelect').val()); // Get selected node
+		                    if (startNodeId) {
+		                        dijkstra(startNodeId); // Start dijkstra
+		                    }
+		                }
+		                disableButtons();
+		                runWithInterval();
+		            } else {
+		                clearIntervalFlag = true;
+		            }
+		        });
+        
+		        // Handle the "Step Forward" button click
+		        $('#stepForward').click(function() {
+		            if (currentStepIndex < 0) {
+		                var startNodeId = parseInt($('#nodeSelect').val()); // Get selected node
+		                if (startNodeId) {
+		                    dijkstra(startNodeId); // Start DFS
+		                }
+		            }
+		            executeNextStep();
+		        });
+        
+		        // Handle the "Restart" button click
+		        $('#restart').click(function() {
+                    resetGraph();
+                });
+            });
+
+            // Priority Queue class for Dijkstra's Algorithm
+            class MinPriorityQueue {
+                constructor() {
+                    this.items = [];
+                }
+
+                enqueue(element, priority) {
+                    var queueElement = { element: element, priority: priority };
+                    var added = false;
+                    for (var i = 0; i < this.items.length; i++) {
+                        if (queueElement.priority < this.items[i].priority) {
+                            this.items.splice(i, 0, queueElement);
+                            added = true;
+                            break;
+                        }
+                    }
+                    if (!added) {
+                        this.items.push(queueElement);
+                    }
+                }
+
+                dequeue() {
+                    return this.items.shift();
+                }
+
+                isEmpty() {
+                    return this.items.length === 0;
+                }
+            }
+        });
+    </script>
+</head>
+<body>
+  <div class="container">
+    <div class="left-column">
+	    <h1>Dijkstra's Algorithm Simulation</h1>
+	    <h2>Pseudocode:</h2>
+        <pre class="pseudo-code">
+<span id="pseudo-line-0">function Dijkstra(Graph, source):</span>
+<span id="pseudo-line-1">  dist[source] = 0</span>
+<span id="pseudo-line-2">  create empty priority queue Q, push source in Q</span>
+<span id="pseudo-line-3">  while Q is not empty:</span>
+<span id="pseudo-line-4">    u = node in Q with smallest distance, remove u from Q</span>
+<span id="pseudo-line-5">    for each neighbor v of u:</span>
+<span id="pseudo-line-6">      alt = dist[u] + length(u, v)</span>
+<span id="pseudo-line-7">      if alt < dist[v]:</span>
+<span id="pseudo-line-8">        dist[v] = alt, update Q with new dist value</span>
+		</pre>
+        <div class="controls">
+            <div class="header-line">
+            <h2>Graph selection:</h2>
+            </div>
+
+            <div class="dropdowns">
+            <label for="graphSelect">Graph:</label>
+            <select id="graphSelect">
+                {% for graph in graphs %}
+                    <option value="{{ graph.id }}">{{ graph.name }}</option>
+                {% endfor %}
+            </select>
+            <label for="nodeSelect">Starting vertex:</label>
+            <select id="nodeSelect">
+                <!-- Node options will be populated here -->
+            </select>
+            <label for="intervalInput">Delay (ms):</label>
+            <input type="number" id="intervalInput" value="300" min="0" step="100">
+            </div>
+
+            <div class="button-line">
+                <button id="restart">Restart</button>
+                <button id="run">Run</button>
+                <button id="stepForward">Step Forward</button>
+            </div>
+        </div>
+
+        <div class="adjacency-list">
+            <h3>Adjacency List:</h3>
+            <ul id="adjacencyList"></ul> <!-- This is where the adjacency list will be displayed -->
+        </div>
+
+        <div class="header-line">
+            <h2>Shortest Path:</h2>
+            <a href="./" class="back-link">← Go Back</a>
+        </div>
+        <div id="Result" class="result"></div>
+    </div>
+      
+    <div class="right-column">
+      <div id="mygraph"></div>
+    </div>
+  <!-- Embedding JSON data safely -->
+  {{ graphs|json_script:"graphs-data" }}
+</body>
+</html>
